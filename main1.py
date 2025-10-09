@@ -1,35 +1,38 @@
 import streamlit as st
 import pandas as pd
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 # Title of the app
 st.title("Teacher Substitution Scheduler")
 
 # Step 1: Upload Excel file
-uploaded_file = st.file_uploader("Upload TimetableAug25 (Excel file)", type=["xlsx"], key="unique_key_1")
+uploaded_file = st.file_uploader("Upload TimetableOct25 (Excel file)", type=["xlsx"], key="unique_key_1")
 if uploaded_file:
     # Load the Excel file into a Pandas DataFrame
-    timetableAug25 = pd.read_excel(uploaded_file, header=0)
-    timetableAug25.columns = timetableAug25.columns.str.strip()  # Remove extra spaces from column names
+    timetableOct25 = pd.read_excel(uploaded_file, header=0)
+    timetableOct25.columns = timetableOct25.columns.str.strip()  # Remove extra spaces from column names
 
     # # Debugging Section (Optional)
     # debug_mode = st.checkbox("Enable debugging?")
     # if debug_mode:
     #     st.write("### Debugging Information")
-    #     st.write("Column Names:", list(timetableAug25.columns))
+    #     st.write("Column Names:", list(timetableOct25.columns))
     #     st.write("First Few Rows:")
-    #     st.dataframe(timetableAug25.head())
+    #     st.dataframe(timetableOct25.head())
 
     # Step 2: Select a day
-    if 'day' in timetableAug25.columns:  # Ensure 'day' column exists
-        selected_day = st.selectbox("Select a day:", timetableAug25['day'].unique())
-        filtered_timetable = timetableAug25[timetableAug25['day'] == selected_day]
+    if 'day' in timetableOct25.columns:  # Ensure 'day' column exists
+        selected_day = st.selectbox("Select a day:", timetableOct25['day'].unique())
+        filtered_timetable = timetableOct25[timetableOct25['day'] == selected_day]
 
         # Display the timetable for the selected day only
         st.write(f"### Timetable for {selected_day}")
         st.dataframe(filtered_timetable)
     else:
         st.error("The 'day' column is missing from the uploaded file.")
-        filtered_timetable = timetableAug25  # Fallback to unfiltered timetable
+        filtered_timetable = timetableOct25  # Fallback to unfiltered timetable
 
     # Step 3: Mark absent teachers
     if 'tname' in filtered_timetable.columns:
@@ -48,8 +51,8 @@ if uploaded_file:
     # Step 4: Check for off classes
     off_classes = st.checkbox("Mark specific classes as off?")
     if off_classes:
-        if 'ct' in timetableAug25.columns:
-            classes_list = timetableAug25['ct'].dropna().unique()
+        if 'ct' in timetableOct25.columns:
+            classes_list = timetableOct25['ct'].dropna().unique()
             off_classes_list = st.multiselect("Select off classes:", classes_list)
         else:
             st.error("'ct' column is missing from the uploaded file.")
@@ -113,7 +116,7 @@ if uploaded_file:
         substitution_table = pd.DataFrame(substitutions, columns=['tname'] + [f'p{i}' for i in range(9)])
 
         # Strictly enforce removal of off-class periods from the final display
-        substitution_table = substitution_table.applymap(lambda x: None if pd.isna(x) or any(off_class in str(x) for off_class in off_classes_list) else x)
+        substitution_table = substitution_table.map(lambda x: None if pd.isna(x) or any(off_class in str(x) for off_class in off_classes_list) else x)
 
         # Remove rows where all periods are off
         valid_rows = substitution_table.apply(
