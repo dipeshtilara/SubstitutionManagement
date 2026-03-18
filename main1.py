@@ -11,7 +11,7 @@ st.set_page_config(layout="wide")
 st.title("Teacher Substitution Scheduler — Daily / Weekly")
 
 # ---------- CONFIG ----------
-LOCAL_FILENAME = "timetableNov25.xlsx"   # your uploaded file name
+LOCAL_FILENAME = "TT_apr26.xlsx"   # your uploaded file name
 # expected fallback period columns (if auto-detect fails)
 DEFAULT_PERIOD_COUNT = 9  # p0..p8
 # ----------------------------
@@ -28,7 +28,7 @@ def load_timetable():
             # fall through to uploader
     uploaded = st.file_uploader("Upload timetable Excel (xlsx). Required columns: 'day', 'tname', 'p0'..'p8'.", type=["xlsx"])
     if not uploaded:
-        st.info("Place timetableNov25.xlsx next to this script or upload an Excel file (xlsx).")
+        st.info("Place TT_apr26.xlsx next to this script or upload an Excel file (xlsx).")
         st.stop()
     try:
         df = pd.read_excel(uploaded, header=0)
