@@ -16,6 +16,7 @@ LOCAL_FILENAME = "TT_apr26.xlsx"   # your uploaded file name
 DEFAULT_PERIOD_COUNT = 9  # p0..p8
 # ----------------------------
 
+
 # ---------- LOAD FILE (auto-load local if present, else uploader) ----------
 def load_timetable():
     if os.path.exists(LOCAL_FILENAME):
@@ -41,6 +42,15 @@ timetable = load_timetable()
 
 # Normalize columns to lowercase and strip spaces
 timetable.columns = timetable.columns.str.strip().str.lower()
+
+# --- DAY ORDERING LOGIC ---
+# Define the sequence. Adjust strings if your Excel uses abbreviations (e.g., 'Mon', 'Tue')
+day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+# Clean and convert to Categorical for proper sorting
+timetable['day'] = timetable['day'].str.strip().str.capitalize()
+timetable['day'] = pd.Categorical(timetable['day'], categories=day_order, ordered=True)
+# --------------------------
 
 # Auto-detect period columns (p0, p1, ...). If not present, fallback to default p0..p8
 import re
