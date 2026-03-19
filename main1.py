@@ -241,7 +241,15 @@ else:
 
             st.write(f"**Total periods for {teacher_choice} in the week:** {total_periods}")
             st.write("### Periods per day for this teacher")
-            st.dataframe(pd.DataFrame(per_day).sort_values(by='day').reset_index(drop=True))
+            
+            # Create the dataframe from our 'per_day' list
+            per_day_df = pd.DataFrame(per_day)
+            
+            # This is the magic fix: Tell this specific table how to sort days
+            per_day_df['day'] = pd.Categorical(per_day_df['day'], categories=day_order, ordered=True)
+            
+            # Now sort and display
+            st.dataframe(per_day_df.sort_values(by='day').reset_index(drop=True))
 
     # weekly absent selection option
     absent_week = []
