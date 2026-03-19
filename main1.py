@@ -189,15 +189,8 @@ if view_mode == "Daily":
 
 # ---------- WEEKLY ----------
 else:
-    # 1. Define the correct sequential order
-    day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
-    # 2. Convert 'day' column to a categorical type with that order
-    # We do this on the whole table first
-    timetable['day'] = pd.Categorical(timetable['day'], categories=day_order, ordered=True)
-
     st.write("### Weekly view")
-    teachers_all = sorted(timetable['tname'].dropna().unique().tolist())
+    teachers_all = timetable['tname'].dropna().unique().tolist()
     teacher_choice = st.selectbox("Select teacher (or All):", options=["All"] + teachers_all)
 
     if teacher_choice == "All":
@@ -210,48 +203,35 @@ else:
                     if cell_has_class(r.get(period, None), period):
                         total += 1
             totals.append({"tname": teacher, "total_periods_week": total, "num_days_present": rows['day'].nunique()})
-        
         totals_df = pd.DataFrame(totals).sort_values(by='total_periods_week', ascending=False).reset_index(drop=True)
         st.write("### Weekly total periods for all teachers")
         st.dataframe(totals_df)
-    
     else:
-        # Filter for the specific teacher
         trows = timetable[timetable['tname'] == teacher_choice].copy()
-        
         if trows.empty:
             st.warning(f"No entries found for teacher: {teacher_choice}")
         else:
-            # IMPORTANT: Sort by the categorical 'day' column
-            trows = trows.sort_values(by='day')
-            
+            try:
+                trows = trows.sort_values(by='day')
+            except Exception:
+                pass
             st.write(f"### Timetable for {teacher_choice} (Entire Week)")
             st.dataframe(trows)
 
             total_periods = 0
             per_day = []
-            
-            # Use day_order to ensure we check every day in the right sequence
-            for d in day_order:
-                # Get rows for this specific day
-                grp = trows[trows['day'] == d]
-                if not grp.empty:
-                    day_count = 0
-                    for _, row in grp.iterrows():
-                        for period in expected_periods:
-                            if cell_has_class(row.get(period, None), period):
-                                day_count += 1
-                    
-                    per_day.append({"day": d, "periods_on_day": day_count})
-                    total_periods += day_count
+            for day_name, grp in trows.groupby('day'):
+                day_count = 0
+                for _, row in grp.iterrows():
+                    for period in expected_periods:
+                        if cell_has_class(row.get(period, None), period):
+                            day_count += 1
+                per_day.append({"day": day_name, "periods_on_day": day_count})
+                total_periods += day_count
 
             st.write(f"**Total periods for {teacher_choice} in the week:** {total_periods}")
-            
             st.write("### Periods per day for this teacher")
-            # Create the summary and enforce the categorical order again to be safe
-            summary_df = pd.DataFrame(per_day)
-            summary_df['day'] = pd.Categorical(summary_df['day'], categories=day_order, ordered=True)
-            st.dataframe(summary_df.sort_values(by='day').reset_index(drop=True))
+            st.dataframe(pd.DataFrame(per_day).sort_values(by='day').reset_index(drop=True))
 
     # weekly absent selection option
     absent_week = []
@@ -282,4 +262,3 @@ else:
 
 st.write("---")
 st.caption("Notes: p0 (Zero Period) is counted only when it explicitly contains 'skill'. 'optional' periods are counted normally. 'ct' column is not required.")
-
