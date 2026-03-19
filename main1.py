@@ -189,6 +189,12 @@ if view_mode == "Daily":
 
 # ---------- WEEKLY ----------
 else:
+    # 1. Define the correct sequential order
+    day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    # 2. Convert 'day' column to a categorical type with that order
+    timetable['day'] = pd.Categorical(timetable['day'], categories=day_order, ordered=True)
+
     st.write("### Weekly view")
     teachers_all = timetable['tname'].dropna().unique().tolist()
     teacher_choice = st.selectbox("Select teacher (or All):", options=["All"] + teachers_all)
