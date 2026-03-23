@@ -175,15 +175,15 @@ if view_mode == "Daily":
         st.write("### Classes handled by selected absent teachers (Daily)")
         st.dataframe(day_df[day_df['tname'].isin(absent_teachers)])
 
-    '''
-    if st.checkbox("Compute substitutions for this day"):
-        subs = arrange_substitutions(day_df, absent_teachers)
-        if not subs.empty:
-            st.write("### Substitution Schedule (Daily)")
-            st.dataframe(subs)
-        else:
-            st.info("No substitutions found for the selected inputs (Daily).")
-    '''
+    
+   # if st.checkbox("Compute substitutions for this day"):
+       # subs = arrange_substitutions(day_df, absent_teachers)
+       # if not subs.empty:
+        #    st.write("### Substitution Schedule (Daily)")
+       #     st.dataframe(subs)
+      #  else:
+      #      st.info("No substitutions found for the selected inputs (Daily).")
+    #
 
     if st.checkbox("Show period counts for teachers (Daily)"):
         counts = []
