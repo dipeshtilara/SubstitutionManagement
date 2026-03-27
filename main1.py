@@ -160,33 +160,40 @@ if view_mode == "Daily":
     st.write(f"### Timetable for {selected_day}")
     st.dataframe(day_df)
 
-    # --- THE FIX FOR DAILY SELECTION ---
-    # Using selectbox + session_state to add one at a time, exactly like Weekly view
+    # UPDATED: Use selectbox instead of multiselect for keyboard efficiency
     daily_teachers = sorted(day_df['tname'].dropna().unique().tolist())
     
     if 'absent_daily' not in st.session_state:
         st.session_state.absent_daily = []
 
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        new_absent = st.selectbox("Select absent teacher (Daily):", options=[""] + daily_teachers, key="daily_sel")
-    with col2:
-        if st.button("Add to Absent List") and new_absent != "":
-            if new_absent not in st.session_state.absent_daily:
-                st.session_state.absent_daily.append(new_absent)
+    # This handles the keyboard selection perfectly - one name at a time
+    selected_name = st.selectbox("Select absent teacher (Daily):", 
+                                 options=[""] + daily_teachers, 
+                                 index=0)
     
-    if st.session_state.absent_daily:
-        st.write("**Current Absent List:**")
-        absent_teachers = st.multiselect("Manage / Remove teachers:", 
-                                         options=st.session_state.absent_daily, 
-                                         default=st.session_state.absent_daily)
-        st.session_state.absent_daily = absent_teachers
-    else:
-        absent_teachers = []
+    # Auto-add to state without button click when Enter is pressed (value changes)
+    if selected_name and selected_name not in st.session_state.absent_daily:
+        st.session_state.absent_daily.append(selected_name)
+
+    # Show the list of absent teachers and allow easy removal if mistake happens
+    absent_teachers = st.multiselect("List of absent teachers (Daily):", 
+                                     options=st.session_state.absent_daily, 
+                                     default=st.session_state.absent_daily)
+    st.session_state.absent_daily = absent_teachers
 
     if absent_teachers:
         st.write("### Classes handled by selected absent teachers (Daily)")
         st.dataframe(day_df[day_df['tname'].isin(absent_teachers)])
+
+    
+   # if st.checkbox("Compute substitutions for this day"):
+       # subs = arrange_substitutions(day_df, absent_teachers)
+       # if not subs.empty:
+        #    st.write("### Substitution Schedule (Daily)")
+       #     st.dataframe(subs)
+      #  else:
+      #      st.info("No substitutions found for the selected inputs (Daily).")
+    #
 
     if st.checkbox("Show period counts for teachers (Daily)"):
         counts = []
@@ -205,18 +212,14 @@ if view_mode == "Daily":
 # ---------- WEEKLY ----------
 else:
     st.write("### Weekly view")
-    teachers_all = timetable['tname'].dropna().unique().tolist()
+    teachers_all = sorted(timetable['tname'].dropna().unique().tolist())
     teacher_choice = st.selectbox("Select teacher (or All):", options=["All"] + teachers_all)
 
     if teacher_choice == "All":
         totals = []
         for teacher in teachers_all:
             rows = timetable[timetable['tname'] == teacher]
-            total = 0
-            for _, r in rows.iterrows():
-                for period in expected_periods:
-                    if cell_has_class(r.get(period, None), period):
-                        total += 1
+            total = sum(cell_has_class(row.get(p), p) for _, row in rows.iterrows() for p in expected_periods)
             totals.append({"tname": teacher, "total_periods_week": total, "num_days_present": rows['day'].nunique()})
         totals_df = pd.DataFrame(totals).sort_values(by='total_periods_week', ascending=False).reset_index(drop=True)
         st.write("### Weekly total periods for all teachers")
