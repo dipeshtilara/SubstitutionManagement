@@ -41,9 +41,9 @@ timetable = load_timetable()
 # Normalize columns to lowercase and strip spaces
 timetable.columns = timetable.columns.str.strip().str.lower()
 
-# --- NEW: Global Name Cleaning (Removes MR., MRS., MS., etc.) ---
+# --- THE FIX: Clean salutations AND convert to Title Case ---
 if 'tname' in timetable.columns:
-    timetable['tname'] = timetable['tname'].astype(str).str.replace(r'^(MR|MRS|MS|DR|PROF)\.?\s+', '', case=False, regex=True).str.strip()
+    timetable['tname'] = timetable['tname'].astype(str).str.replace(r'^(MR|MRS|MS|DR|PROF)\.?\s+', '', case=False, regex=True).str.strip().str.title()
 
 # --- DAY ORDERING LOGIC ---
 # Define the sequence. Adjust strings if your Excel uses abbreviations (e.g., 'Mon', 'Tue')
@@ -93,11 +93,6 @@ if off_classes:
 def cell_has_class(val, period_name=None):
     """
     Return True if this cell counts as a class period.
-     - Empty/NaN -> False
-     - Off-classes (user selected) -> False
-     - If period_name is p0 (zero period): only count if 'skill' appears in cell text
-     - If cell explicitly indicates 'zero pd' / '0 pd' / 'zero' -> False unless 'skill' present
-     - All other cells (including 'optional') count as class
     """
     if pd.isna(val):
         return False
@@ -106,21 +101,17 @@ def cell_has_class(val, period_name=None):
         return False
     s_lower = s.lower()
 
-    # Off-classes exclusion (substring, case-insensitive)
     if off_classes_list:
         for off in off_classes_list:
             if off and off.lower() in s_lower:
                 return False
 
-    # p0 special handling: zero period column ignored unless contains 'skill'
     if period_name and period_name.lower() == "p0":
         return "skill" in s_lower
 
-    # explicit zero pd in cell content: ignore unless also mentions skill
     if (("zero pd" in s_lower) or (s_lower == "0 pd") or (s_lower == "zero")) and ("skill" not in s_lower):
         return False
 
-    # otherwise counted (includes 'optional')
     return True
 
 # ---------- Substitution allocator (per-day) ----------
@@ -137,7 +128,6 @@ def arrange_substitutions(filtered_day_df, absent_teachers):
             entry = {"tname": tname}
             for period in expected:
                 if cell_has_class(row.get(period, None), period):
-                    # free teachers: those not absent and having blank in that period
                     free_teachers = filtered_day_df[
                         ((filtered_day_df[period].isna()) | (filtered_day_df[period].astype(str).str.strip() == "")) &
                         (~filtered_day_df['tname'].isin(absent_teachers))
@@ -145,7 +135,6 @@ def arrange_substitutions(filtered_day_df, absent_teachers):
                     random.shuffle(free_teachers)
                     substitute = None
                     for cand in free_teachers:
-                        # fairness heuristic: avoid giving same teacher multiple in same half-day
                         first_half = any(p in assigned.get(cand, []) for p in expected[:5])
                         second_half = any(p in assigned.get(cand, []) for p in expected[5:])
                         if period in expected[:5] and first_half: continue
@@ -171,23 +160,33 @@ if view_mode == "Daily":
     st.write(f"### Timetable for {selected_day}")
     st.dataframe(day_df)
 
-    # UPDATED: Using cleaned names for selection
-    daily_teachers = day_df['tname'].dropna().unique().tolist()
-    absent_teachers = st.multiselect("Select absent teachers (Daily):", options=daily_teachers)
+    # --- THE FIX FOR DAILY SELECTION ---
+    # Using selectbox + session_state to add one at a time, exactly like Weekly view
+    daily_teachers = sorted(day_df['tname'].dropna().unique().tolist())
+    
+    if 'absent_daily' not in st.session_state:
+        st.session_state.absent_daily = []
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        new_absent = st.selectbox("Select absent teacher (Daily):", options=[""] + daily_teachers, key="daily_sel")
+    with col2:
+        if st.button("Add to Absent List") and new_absent != "":
+            if new_absent not in st.session_state.absent_daily:
+                st.session_state.absent_daily.append(new_absent)
+    
+    if st.session_state.absent_daily:
+        st.write("**Current Absent List:**")
+        absent_teachers = st.multiselect("Manage / Remove teachers:", 
+                                         options=st.session_state.absent_daily, 
+                                         default=st.session_state.absent_daily)
+        st.session_state.absent_daily = absent_teachers
+    else:
+        absent_teachers = []
 
     if absent_teachers:
         st.write("### Classes handled by selected absent teachers (Daily)")
         st.dataframe(day_df[day_df['tname'].isin(absent_teachers)])
-
-    
-   # if st.checkbox("Compute substitutions for this day"):
-       # subs = arrange_substitutions(day_df, absent_teachers)
-       # if not subs.empty:
-        #    st.write("### Substitution Schedule (Daily)")
-       #     st.dataframe(subs)
-      #  else:
-      #      st.info("No substitutions found for the selected inputs (Daily).")
-    #
 
     if st.checkbox("Show period counts for teachers (Daily)"):
         counts = []
@@ -224,65 +223,37 @@ else:
         st.dataframe(totals_df)
     else:
         trows = timetable[timetable['tname'] == teacher_choice].copy()
-        if trows.empty:
-            st.warning(f"No entries found for teacher: {teacher_choice}")
-        else:
-            try:
-                trows = trows.sort_values(by='day')
-            except Exception:
-                pass
+        if not trows.empty:
             st.write(f"### Timetable for {teacher_choice} (Entire Week)")
             st.dataframe(trows)
-
-            total_periods = 0
+            
             per_day = []
             for day_name, grp in trows.groupby('day'):
-                day_count = 0
-                for _, row in grp.iterrows():
-                    for period in expected_periods:
-                        if cell_has_class(row.get(period, None), period):
-                            day_count += 1
+                day_count = sum(cell_has_class(row.get(p), p) for _, row in grp.iterrows() for p in expected_periods)
                 per_day.append({"day": day_name, "periods_on_day": day_count})
-                total_periods += day_count
-
-            st.write(f"**Total periods for {teacher_choice} in the week:** {total_periods}")
-            st.write("### Periods per day for this teacher")
             
-            # Create the dataframe from our 'per_day' list
             per_day_df = pd.DataFrame(per_day)
-            
-            # This is the magic fix: Tell this specific table how to sort days
             per_day_df['day'] = pd.Categorical(per_day_df['day'], categories=day_order, ordered=True)
-            
-            # Now sort and display
             st.dataframe(per_day_df.sort_values(by='day').reset_index(drop=True))
 
-    # weekly absent selection option
     absent_week = []
     if st.checkbox("Select absent teachers (apply across the week)?"):
         absent_week = st.multiselect("Select absent teachers (Weekly):", options=teachers_all)
         if absent_week:
             st.write("### Classes handled by selected absent teachers (Weekly)")
             st.dataframe(timetable[timetable['tname'].isin(absent_week)])
-        else:
-            st.info("No absent teachers selected for weekly view.")
 
-    # weekly substitution (per day)
     if st.checkbox("Compute substitutions for the whole week (day-wise)"):
         subs_all = []
-        days = timetable['day'].dropna().unique().tolist()
-        for d in days:
+        for d in timetable['day'].dropna().unique().tolist():
             day_df = timetable[timetable['day'] == d]
             subs_for_day = arrange_substitutions(day_df, absent_week)
             if not subs_for_day.empty:
                 subs_for_day.insert(0, "day", d)
                 subs_all.append(subs_for_day)
         if subs_all:
-            sub_df_week = pd.concat(subs_all, ignore_index=True)
             st.write("### Substitution Schedule (Weekly, day-wise)")
-            st.dataframe(sub_df_week)
-        else:
-            st.info("No substitutions found across the week (based on selected inputs).")
+            st.dataframe(pd.concat(subs_all, ignore_index=True))
 
 st.write("---")
 st.caption("Notes: p0 (Zero Period) is counted only when it explicitly contains 'skill'. 'optional' periods are counted normally. 'ct' column is not required.")
