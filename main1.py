@@ -1,5 +1,3 @@
-
-# main1.py
 import os
 import streamlit as st
 import pandas as pd
@@ -11,7 +9,7 @@ st.set_page_config(layout="wide")
 st.title("Teacher Substitution Scheduler — Daily / Weekly")
 
 # ---------- CONFIG ----------
-LOCAL_FILENAME = "TT_apr26.xlsx"   # your uploaded file name
+LOCAL_FILENAME = "TT_apr26.xlsx"    # your uploaded file name
 # expected fallback period columns (if auto-detect fails)
 DEFAULT_PERIOD_COUNT = 9  # p0..p8
 # ----------------------------
@@ -42,6 +40,10 @@ timetable = load_timetable()
 
 # Normalize columns to lowercase and strip spaces
 timetable.columns = timetable.columns.str.strip().str.lower()
+
+# --- NEW: Global Name Cleaning (Removes MR., MRS., MS., etc.) ---
+if 'tname' in timetable.columns:
+    timetable['tname'] = timetable['tname'].astype(str).str.replace(r'^(MR|MRS|MS|DR|PROF)\.?\s+', '', case=False, regex=True).str.strip()
 
 # --- DAY ORDERING LOGIC ---
 # Define the sequence. Adjust strings if your Excel uses abbreviations (e.g., 'Mon', 'Tue')
@@ -169,7 +171,9 @@ if view_mode == "Daily":
     st.write(f"### Timetable for {selected_day}")
     st.dataframe(day_df)
 
-    absent_teachers = st.multiselect("Select absent teachers (Daily):", options=day_df['tname'].dropna().unique().tolist())
+    # UPDATED: Using cleaned names for selection
+    daily_teachers = day_df['tname'].dropna().unique().tolist()
+    absent_teachers = st.multiselect("Select absent teachers (Daily):", options=daily_teachers)
 
     if absent_teachers:
         st.write("### Classes handled by selected absent teachers (Daily)")
@@ -187,7 +191,7 @@ if view_mode == "Daily":
 
     if st.checkbox("Show period counts for teachers (Daily)"):
         counts = []
-        for teacher in day_df['tname'].dropna().unique().tolist():
+        for teacher in daily_teachers:
             teacher_rows = day_df[day_df['tname'] == teacher]
             c = 0
             for _, r in teacher_rows.iterrows():
